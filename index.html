@@ -451,7 +451,6 @@
             if(document.getElementById('cod-date')) document.getElementById('cod-date').value = today;
             if(document.getElementById('bill-date')) document.getElementById('bill-date').value = today;
             
-            // Fetch live data from Cloud & LocalStorage
             fetchDataFromCloud();
         };
 
@@ -467,7 +466,7 @@
         function fetchDataFromCloud() {
             showLoading(true);
             
-            // Load instantly from localStorage first
+            // 1. Load instantly from LocalStorage so dashboard opens fast
             try {
                 const localSaved = localStorage.getItem('namhya_app_data');
                 if (localSaved) {
@@ -482,7 +481,7 @@
                 }
             } catch(e) {}
 
-            // Then fetch live data from Google Sheet in background
+            // 2. Fetch live data from Google Sheets in background
             fetch(SCRIPT_URL, { method: 'GET', redirect: 'follow' })
                 .then(response => response.json())
                 .then(data => {
@@ -500,48 +499,46 @@
                     showLoading(false);
                 })
                 .catch(err => {
-                    console.error('Cloud fetch warning:', err);
+                    console.log('Using local/cached data.');
                     showLoading(false);
                 });
         }
 
-        // --- SAVE DATA TO LOCALSTORAGE + SILENT FORM SYNC TO GOOGLE SHEET ---
+        // --- SAVE DATA LOCALLY & SYNC SILENTLY (NO ERRORS) ---
         function saveAll() {
-            showLoading(true);
-
-            // 1. Save locally for instant dashboard update
+            // 1. Save immediately to LocalStorage so dashboard updates instantly without any error
             localStorage.setItem('namhya_app_data', JSON.stringify(appData));
+            renderAll();
 
-            // 2. Sync silently to Google Sheet via Hidden Form (No CORS error)
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = SCRIPT_URL;
-            form.target = 'hidden_iframe';
-            
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = 'data';
-            input.value = JSON.stringify(appData);
-            
-            form.appendChild(input);
-            
-            let iframe = document.getElementById('hidden_iframe');
-            if (!iframe) {
-                iframe = document.createElement('iframe');
-                iframe.name = 'hidden_iframe';
-                iframe.id = 'hidden_iframe';
-                iframe.style.display = 'none';
-                document.body.appendChild(iframe);
+            // 2. Send data to Google Sheet silently using image beacon / hidden form (No alert popups)
+            try {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = SCRIPT_URL;
+                form.target = 'hidden_iframe';
+                
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'data';
+                input.value = JSON.stringify(appData);
+                
+                form.appendChild(input);
+                
+                let iframe = document.getElementById('hidden_iframe');
+                if (!iframe) {
+                    iframe = document.createElement('iframe');
+                    iframe.name = 'hidden_iframe';
+                    iframe.id = 'hidden_iframe';
+                    iframe.style.display = 'none';
+                    document.body.appendChild(iframe);
+                }
+                
+                document.body.appendChild(form);
+                form.submit();
+                document.body.removeChild(form);
+            } catch(e) {
+                console.log('Silent sync background note:', e);
             }
-            
-            document.body.appendChild(form);
-            form.submit();
-            document.body.removeChild(form);
-            
-            setTimeout(() => {
-                showLoading(false);
-                renderAll();
-            }, 800);
         }
 
         function renderAll() {
@@ -670,7 +667,7 @@
                         };
                     });
                     saveAll();
-                    alert('Stock deficit auto-calculated & synced!');
+                    alert('Stock deficit auto-calculated!');
                 } catch(err) { alert('Error parsing received file.'); }
             };
             reader.readAsArrayBuffer(file);
@@ -725,7 +722,7 @@
                     });
 
                     saveAll();
-                    alert(`RTO sheet uploaded & synced! Total records: ${appData.rto.length}`);
+                    alert(`RTO sheet uploaded! Total records: ${appData.rto.length}`);
                 } catch(err) { alert('Error parsing RTO file.'); }
             };
             reader.readAsArrayBuffer(file);
