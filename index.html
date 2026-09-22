@@ -451,7 +451,7 @@
             if(document.getElementById('cod-date')) document.getElementById('cod-date').value = today;
             if(document.getElementById('bill-date')) document.getElementById('bill-date').value = today;
             
-            // Fetch live data from Google Sheets on load
+            // Fetch live data from Cloud & LocalStorage
             fetchDataFromCloud();
         };
 
@@ -463,48 +463,85 @@
             }
         }
 
-        // --- FETCH DATA FROM GOOGLE SHEETS (CORRECTED) ---
+        // --- FETCH DATA FROM CLOUD + LOCALSTORAGE FALLBACK ---
         function fetchDataFromCloud() {
             showLoading(true);
+            
+            // Load instantly from localStorage first
+            try {
+                const localSaved = localStorage.getItem('namhya_app_data');
+                if (localSaved) {
+                    const parsed = JSON.parse(localSaved);
+                    appData.cod = parsed.cod || [];
+                    appData.bills = parsed.bills || [];
+                    appData.stock = parsed.stock || [];
+                    appData.rto = parsed.rto || [];
+                    appData.tasks = parsed.tasks || [];
+                    appData.skuMaster = parsed.skuMaster || [];
+                    renderAll();
+                }
+            } catch(e) {}
+
+            // Then fetch live data from Google Sheet in background
             fetch(SCRIPT_URL, { method: 'GET', redirect: 'follow' })
                 .then(response => response.json())
                 .then(data => {
-                    appData.cod = data.cod || [];
-                    appData.bills = data.bills || [];
-                    appData.stock = data.stock || [];
-                    appData.rto = data.rto || [];
-                    appData.tasks = data.tasks || [];
-                    appData.skuMaster = data.skuMaster || [];
-                    renderAll();
+                    if (data && (data.cod?.length > 0 || data.rto?.length > 0 || data.tasks?.length > 0)) {
+                        appData.cod = data.cod || [];
+                        appData.bills = data.bills || [];
+                        appData.stock = data.stock || [];
+                        appData.rto = data.rto || [];
+                        appData.tasks = data.tasks || [];
+                        appData.skuMaster = data.skuMaster || [];
+                        
+                        localStorage.setItem('namhya_app_data', JSON.stringify(appData));
+                        renderAll();
+                    }
                     showLoading(false);
                 })
                 .catch(err => {
-                    console.error('Error fetching data:', err);
+                    console.error('Cloud fetch warning:', err);
                     showLoading(false);
-                    renderAll(); // Ignore initial empty state error
                 });
         }
 
-        // --- SAVE DATA TO GOOGLE SHEETS (CORRECTED) ---
+        // --- SAVE DATA TO LOCALSTORAGE + SILENT FORM SYNC TO GOOGLE SHEET ---
         function saveAll() {
             showLoading(true);
-            fetch(SCRIPT_URL, {
-                method: 'POST',
-                redirect: 'follow',
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: JSON.stringify(appData)
-            })
-            .then(response => response.text())
-            .then(() => {
+
+            // 1. Save locally for instant dashboard update
+            localStorage.setItem('namhya_app_data', JSON.stringify(appData));
+
+            // 2. Sync silently to Google Sheet via Hidden Form (No CORS error)
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = SCRIPT_URL;
+            form.target = 'hidden_iframe';
+            
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'data';
+            input.value = JSON.stringify(appData);
+            
+            form.appendChild(input);
+            
+            let iframe = document.getElementById('hidden_iframe');
+            if (!iframe) {
+                iframe = document.createElement('iframe');
+                iframe.name = 'hidden_iframe';
+                iframe.id = 'hidden_iframe';
+                iframe.style.display = 'none';
+                document.body.appendChild(iframe);
+            }
+            
+            document.body.appendChild(form);
+            form.submit();
+            document.body.removeChild(form);
+            
+            setTimeout(() => {
                 showLoading(false);
                 renderAll();
-            })
-            .catch(err => {
-                showLoading(false);
-                console.error('Error saving data:', err);
-                alert('Error syncing with Google Sheet.');
-                renderAll();
-            });
+            }, 800);
         }
 
         function renderAll() {
@@ -560,7 +597,7 @@
                         received: parseFloat(r.Received || r.received || r.RemittedAmount || 0)
                     }));
                     saveAll();
-                    alert(`Successfully imported ${appData.cod.length} COD remittance records to Cloud!`);
+                    alert(`Successfully imported ${appData.cod.length} COD remittance records!`);
                 } catch(err) { alert('Error parsing COD Excel file.'); }
             };
             reader.readAsArrayBuffer(file);
@@ -586,7 +623,7 @@
                         paid: parseFloat(r.Paid || r.paid || 0)
                     }));
                     saveAll();
-                    alert(`Successfully imported ${appData.bills.length} vendor bills to Cloud!`);
+                    alert(`Successfully imported ${appData.bills.length} vendor bills!`);
                 } catch(err) { alert('Error parsing Bills Excel file.'); }
             };
             reader.readAsArrayBuffer(file);
@@ -633,7 +670,7 @@
                         };
                     });
                     saveAll();
-                    alert('Stock deficit auto-calculated and synced to Cloud!');
+                    alert('Stock deficit auto-calculated & synced!');
                 } catch(err) { alert('Error parsing received file.'); }
             };
             reader.readAsArrayBuffer(file);
