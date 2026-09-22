@@ -431,7 +431,7 @@
     </div>
 
     <script>
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzKJVwXQv-jdZ7tNbS7Qjquqt7bi7YJazTTKRv0oue3zu6CVjFJbc-mEb968Xo4KG_E/exec";
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwLNlQFEWD2PCCihK3aZEWPj6tHchYHZMZr7qkNoxuF6n8EpYluP15dBQdYaQ8WwqUa/exec";
 
         let appData = {
             cod: [],
@@ -487,39 +487,19 @@
                 });
         }
 
-        // --- SAVE DATA CLEANLY ---
+        // --- SAVE DATA TO GOOGLE SHEET (POST REQUEST) ---
         function saveAll() {
             localStorage.setItem('namhya_app_data', JSON.stringify(appData));
             renderAll();
 
-            try {
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = SCRIPT_URL;
-                form.target = 'hidden_iframe';
-                
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = 'data';
-                input.value = JSON.stringify(appData);
-                
-                form.appendChild(input);
-                
-                let iframe = document.getElementById('hidden_iframe');
-                if (!iframe) {
-                    iframe = document.createElement('iframe');
-                    iframe.name = 'hidden_iframe';
-                    iframe.id = 'hidden_iframe';
-                    iframe.style.display = 'none';
-                    document.body.appendChild(iframe);
-                }
-                
-                document.body.appendChild(form);
-                form.submit();
-                document.body.removeChild(form);
-            } catch(e) {
-                console.log('Sync error:', e);
-            }
+            fetch(SCRIPT_URL, {
+                method: 'POST',
+                body: JSON.stringify(appData),
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+            })
+            .then(res => res.json())
+            .then(res => console.log('Saved to Google Sheet:', res))
+            .catch(err => console.log('Save error:', err));
         }
 
         function renderAll() {
@@ -574,7 +554,7 @@
                         received: parseFloat(r.Received || r.received || r.RemittedAmount || 0)
                     }));
                     saveAll();
-                    alert(`Successfully imported ${appData.cod.length} COD remittance records!`);
+                    alert(`Successfully imported ${appData.cod.length} COD remittance records and synced with Google Sheet!`);
                 } catch(err) { alert('Error parsing COD Excel file.'); }
             };
             reader.readAsArrayBuffer(file);
@@ -599,7 +579,7 @@
                         paid: parseFloat(r.Paid || r.paid || 0)
                     }));
                     saveAll();
-                    alert(`Successfully imported ${appData.bills.length} vendor bills!`);
+                    alert(`Successfully imported ${appData.bills.length} vendor bills and synced with Google Sheet!`);
                 } catch(err) { alert('Error parsing Bills Excel file.'); }
             };
             reader.readAsArrayBuffer(file);
@@ -645,7 +625,7 @@
                         };
                     });
                     saveAll();
-                    alert('Stock deficit auto-calculated!');
+                    alert('Stock deficit auto-calculated and synced with Google Sheet!');
                 } catch(err) { alert('Error parsing received file.'); }
             };
             reader.readAsArrayBuffer(file);
@@ -699,7 +679,7 @@
                     });
 
                     saveAll();
-                    alert(`RTO sheet uploaded! Total records: ${appData.rto.length}`);
+                    alert(`RTO sheet uploaded and synced! Total records: ${appData.rto.length}`);
                 } catch(err) { alert('Error parsing RTO file.'); }
             };
             reader.readAsArrayBuffer(file);
