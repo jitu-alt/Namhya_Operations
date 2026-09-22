@@ -462,11 +462,11 @@
             }
         }
 
-        // --- FETCH DATA FROM CLOUD + LOCALSTORAGE FALLBACK ---
+        // --- FETCH DATA FROM CLOUD ---
         function fetchDataFromCloud() {
             showLoading(true);
             
-            // 1. Load instantly from LocalStorage so dashboard opens fast
+            // Local fallback for instant view
             try {
                 const localSaved = localStorage.getItem('namhya_app_data');
                 if (localSaved) {
@@ -481,11 +481,10 @@
                 }
             } catch(e) {}
 
-            // 2. Fetch live data from Google Sheets in background
             fetch(SCRIPT_URL, { method: 'GET', redirect: 'follow' })
                 .then(response => response.json())
                 .then(data => {
-                    if (data && (data.cod?.length > 0 || data.rto?.length > 0 || data.tasks?.length > 0)) {
+                    if (data && (data.cod?.length > 0 || data.rto?.length > 0 || data.tasks?.length > 0 || data.bills?.length > 0)) {
                         appData.cod = data.cod || [];
                         appData.bills = data.bills || [];
                         appData.stock = data.stock || [];
@@ -499,46 +498,27 @@
                     showLoading(false);
                 })
                 .catch(err => {
-                    console.log('Using local/cached data.');
                     showLoading(false);
                 });
         }
 
-        // --- SAVE DATA LOCALLY & SYNC SILENTLY (NO ERRORS) ---
+        // --- SAVE DATA CLEANLY (NO ERROR POPUPS) ---
         function saveAll() {
-            // 1. Save immediately to LocalStorage so dashboard updates instantly without any error
+            // 1. Update localStorage instantly so UI updates immediately
             localStorage.setItem('namhya_app_data', JSON.stringify(appData));
             renderAll();
 
-            // 2. Send data to Google Sheet silently using image beacon / hidden form (No alert popups)
+            // 2. Send data to Google Sheet using navigator.sendBeacon or silent fetch (Bypasses all alert blocks)
             try {
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = SCRIPT_URL;
-                form.target = 'hidden_iframe';
-                
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = 'data';
-                input.value = JSON.stringify(appData);
-                
-                form.appendChild(input);
-                
-                let iframe = document.getElementById('hidden_iframe');
-                if (!iframe) {
-                    iframe = document.createElement('iframe');
-                    iframe.name = 'hidden_iframe';
-                    iframe.id = 'hidden_iframe';
-                    iframe.style.display = 'none';
-                    document.body.appendChild(iframe);
-                }
-                
-                document.body.appendChild(form);
-                form.submit();
-                document.body.removeChild(form);
-            } catch(e) {
-                console.log('Silent sync background note:', e);
-            }
+                const formData = new URLSearchParams();
+                formData.append('data', JSON.stringify(appData));
+
+                fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    body: formData
+                }).catch(() => {});
+            } catch(e) {}
         }
 
         function renderAll() {
