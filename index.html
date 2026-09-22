@@ -420,7 +420,7 @@
                 <div><label class="block text-xs uppercase text-slate-500 mb-1">Vendor / Hub Location</label><select id="stock-location" class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-900"><option value="Olitia Cares LLP">Olitia Cares LLP</option><option value="Jammu MotherHub">Jammu MotherHub</option><option value="KEMPVILLE BEVERAGES PVT.LTD.">KEMPVILLE BEVERAGES PVT.LTD.</option></select></div>
                 <div><label class="block text-xs uppercase text-slate-500 mb-1">EAN Code (Auto-fill)</label><input type="text" id="stock-ean" oninput="lookupEan(this.value)" placeholder="Scan EAN..." class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-900"></div>
                 <div><label class="block text-xs uppercase text-slate-500 mb-1">SKU Code</label><input type="text" id="stock-sku" required class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-900"></div>
-                <div><label class="block text-xs uppercase text-slate-500 mb-1">Item Description</label><input type="text" id="stock-name" required class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-900"></div>
+                <div><label class="px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-900" class="block text-xs uppercase text-slate-500 mb-1">Item Description</label><input type="text" id="stock-name" required class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-900"></div>
                 <div class="grid grid-cols-2 gap-3">
                     <div><label class="block text-xs uppercase text-slate-500 mb-1">Projected</label><input type="number" id="stock-projected" required class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-900"></div>
                     <div><label class="block text-xs uppercase text-slate-500 mb-1">Received</label><input type="number" id="stock-received" required class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-900"></div>
@@ -462,54 +462,43 @@
             }
         }
 
-        // --- FETCH DATA FROM CLOUD (CLEAN FETCH) ---
+        // --- FETCH DATA USING JSONP (100% CORS BYPASS) ---
         function fetchDataFromCloud() {
             showLoading(true);
-            
-            // Local fallback for instant view
-            try {
-                const localSaved = localStorage.getItem('namhya_app_data');
-                if (localSaved) {
-                    const parsed = JSON.parse(localSaved);
-                    appData.cod = parsed.cod || [];
-                    appData.bills = parsed.bills || [];
-                    appData.stock = parsed.stock || [];
-                    appData.rto = parsed.rto || [];
-                    appData.tasks = parsed.tasks || [];
-                    appData.skuMaster = parsed.skuMaster || [];
+
+            window.handleDataLoaded = function(data) {
+                if (data) {
+                    appData.cod = data.cod || [];
+                    appData.bills = data.bills || [];
+                    appData.stock = data.stock || [];
+                    appData.rto = data.rto || [];
+                    appData.tasks = data.tasks || [];
+                    appData.skuMaster = data.skuMaster || [];
+                    
+                    localStorage.setItem('namhya_app_data', JSON.stringify(appData));
                     renderAll();
                 }
-            } catch(e) {}
+                showLoading(false);
+            };
 
-            fetch(SCRIPT_URL, { method: 'GET', redirect: 'follow' })
-                .then(response => response.json())
-                .then(data => {
-                    if (data && (data.cod?.length > 0 || data.rto?.length > 0 || data.tasks?.length > 0 || data.bills?.length > 0)) {
-                        appData.cod = data.cod || [];
-                        appData.bills = data.bills || [];
-                        appData.stock = data.stock || [];
-                        appData.rto = data.rto || [];
-                        appData.tasks = data.tasks || [];
-                        appData.skuMaster = data.skuMaster || [];
-                        
-                        localStorage.setItem('namhya_app_data', JSON.stringify(appData));
-                        renderAll();
-                    }
-                    showLoading(false);
-                })
-                .catch(err => {
-                    console.log('Fetch error:', err);
-                    showLoading(false);
-                });
+            const oldScript = document.getElementById('jsonp_script');
+            if (oldScript) oldScript.remove();
+
+            const script = document.createElement('script');
+            script.id = 'jsonp_script';
+            script.src = SCRIPT_URL + '?callback=handleDataLoaded&t=' + Date.now();
+            script.onerror = function() {
+                showLoading(false);
+                console.log('JSONP load error');
+            };
+            document.body.appendChild(script);
         }
 
         // --- SAVE DATA CLEANLY (NO ERROR POPUPS) ---
         function saveAll() {
-            // 1. Update localStorage instantly so dashboard updates immediately
             localStorage.setItem('namhya_app_data', JSON.stringify(appData));
             renderAll();
 
-            // 2. Sync to Google Sheet using a hidden form post (Bypasses CORS completely)
             try {
                 const form = document.createElement('form');
                 form.method = 'POST';
@@ -539,6 +528,7 @@
                 console.log('Sync error:', e);
             }
         }
+
         function renderAll() {
             renderCodTable();
             renderBillsTable();
@@ -572,7 +562,6 @@
             }
         }
 
-        // --- COD REMITTANCE EXCEL UPLOAD ---
         function handleCodUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -598,7 +587,6 @@
             reader.readAsArrayBuffer(file);
         }
 
-        // --- VENDOR BILLS EXCEL UPLOAD ---
         function handleBillUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -624,7 +612,6 @@
             reader.readAsArrayBuffer(file);
         }
 
-        // --- STOCK DEFICIT EXCEL UPLOADS ---
         let tempProjection = [];
         function handleProjectionUpload(event) {
             const file = event.target.files[0];
@@ -671,7 +658,6 @@
             reader.readAsArrayBuffer(file);
         }
 
-        // --- RTO EXCEL UPLOAD & ANALYSIS ---
         function handleRtoUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -824,7 +810,6 @@
             });
         }
 
-        // --- SKU MASTER & EAN LOOKUP ---
         function handleMasterUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -871,7 +856,6 @@
         }
         function clearSkuMaster() { if (confirm('Clear master?')) { appData.skuMaster = []; saveAll(); } }
 
-        // --- COD Render & Modals ---
         function renderCodTable() {
             const query = document.getElementById('cod-search').value.toLowerCase();
             const tbody = document.getElementById('cod-table-body');
@@ -903,6 +887,7 @@
             document.getElementById('cod-stat-matched-badge').innerText = `${matchedCount} Matched`;
             document.getElementById('cod-stat-disc-badge').innerText = `${discCount} Discrepancy`;
         }
+
         function openCodModal(id = null) {
             document.getElementById('cod-modal').classList.remove('hidden');
             if(id) {
@@ -938,7 +923,6 @@
         function editCod(id) { openCodModal(id); }
         function deleteCod(id) { if(confirm('Delete record?')) { appData.cod = appData.cod.filter(x => x.id !== id); saveAll(); } }
 
-        // --- Bills Render & Modals ---
         function renderBillsTable() {
             const query = document.getElementById('bill-search').value.toLowerCase();
             const tbody = document.getElementById('bills-table-body');
@@ -1001,7 +985,6 @@
         function editBill(id) { openBillModal(id); }
         function deleteBill(id) { if(confirm('Delete bill?')) { appData.bills = appData.bills.filter(x => x.id !== id); saveAll(); } }
 
-        // --- Stock Render & Modals ---
         function renderStockTable() {
             const query = document.getElementById('stock-search').value.toLowerCase();
             const tbody = document.getElementById('stock-table-body');
@@ -1066,7 +1049,6 @@
         function editStock(id) { openStockModal(id); }
         function deleteStock(id) { if(confirm('Delete stock item?')) { appData.stock = appData.stock.filter(x => x.id !== id); saveAll(); } }
 
-        // --- Tasks Render ---
         function renderTasks() {
             const filter = document.getElementById('task-filter').value;
             const container = document.getElementById('tasks-container');
