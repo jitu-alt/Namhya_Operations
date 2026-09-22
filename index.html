@@ -504,23 +504,40 @@
 
         // --- SAVE DATA CLEANLY (NO ERROR POPUPS) ---
         function saveAll() {
-            // 1. Update localStorage instantly so UI updates immediately
+            // 1. Update localStorage instantly so dashboard updates immediately
             localStorage.setItem('namhya_app_data', JSON.stringify(appData));
             renderAll();
 
-            // 2. Send data to Google Sheet using navigator.sendBeacon or silent fetch (Bypasses all alert blocks)
+            // 2. Sync to Google Sheet using a hidden form post (Bypasses CORS completely)
             try {
-                const formData = new URLSearchParams();
-                formData.append('data', JSON.stringify(appData));
-
-                fetch(SCRIPT_URL, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    body: formData
-                }).catch(() => {});
-            } catch(e) {}
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = SCRIPT_URL;
+                form.target = 'hidden_iframe';
+                
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'data';
+                input.value = JSON.stringify(appData);
+                
+                form.appendChild(input);
+                
+                let iframe = document.getElementById('hidden_iframe');
+                if (!iframe) {
+                    iframe = document.createElement('iframe');
+                    iframe.name = 'hidden_iframe';
+                    iframe.id = 'hidden_iframe';
+                    iframe.style.display = 'none';
+                    document.body.appendChild(iframe);
+                }
+                
+                document.body.appendChild(form);
+                form.submit();
+                document.body.removeChild(form);
+            } catch(e) {
+                console.log('Sync error:', e);
+            }
         }
-
         function renderAll() {
             renderCodTable();
             renderBillsTable();
