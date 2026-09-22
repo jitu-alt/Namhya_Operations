@@ -29,7 +29,7 @@
 </head>
 <body class="h-full bg-emerald-50/40 dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-sans transition-colors duration-200">
 
-    <!-- Loading Overlay -->
+    <!-- Loading Overlay (Disabled to prevent freezing) -->
     <div id="loading-overlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center hidden">
         <div class="bg-white dark:bg-slate-800 px-6 py-4 rounded-2xl shadow-xl flex items-center space-x-3">
             <i class="fa-solid fa-spinner fa-spin text-emerald-600 text-xl"></i>
@@ -420,7 +420,7 @@
                 <div><label class="block text-xs uppercase text-slate-500 mb-1">Vendor / Hub Location</label><select id="stock-location" class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-900"><option value="Olitia Cares LLP">Olitia Cares LLP</option><option value="Jammu MotherHub">Jammu MotherHub</option><option value="KEMPVILLE BEVERAGES PVT.LTD.">KEMPVILLE BEVERAGES PVT.LTD.</option></select></div>
                 <div><label class="block text-xs uppercase text-slate-500 mb-1">EAN Code (Auto-fill)</label><input type="text" id="stock-ean" oninput="lookupEan(this.value)" placeholder="Scan EAN..." class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-900"></div>
                 <div><label class="block text-xs uppercase text-slate-500 mb-1">SKU Code</label><input type="text" id="stock-sku" required class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-900"></div>
-                <div><label class="px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-900" class="block text-xs uppercase text-slate-500 mb-1">Item Description</label><input type="text" id="stock-name" required class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-900"></div>
+                <div><label class="block text-xs uppercase text-slate-500 mb-1">Item Description</label><input type="text" id="stock-name" required class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-900"></div>
                 <div class="grid grid-cols-2 gap-3">
                     <div><label class="block text-xs uppercase text-slate-500 mb-1">Projected</label><input type="number" id="stock-projected" required class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-900"></div>
                     <div><label class="block text-xs uppercase text-slate-500 mb-1">Received</label><input type="number" id="stock-received" required class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-900"></div>
@@ -462,9 +462,22 @@
             }
         }
 
-        // --- FETCH DATA USING JSONP (100% CORS BYPASS) ---
+        // --- FETCH DATA FROM CLOUD (NO STUCK LOADING) ---
         function fetchDataFromCloud() {
-            showLoading(true);
+            // Local fallback taaki instant data dikhe
+            try {
+                const localSaved = localStorage.getItem('namhya_app_data');
+                if (localSaved) {
+                    const parsed = JSON.parse(localSaved);
+                    appData.cod = parsed.cod || [];
+                    appData.bills = parsed.bills || [];
+                    appData.stock = parsed.stock || [];
+                    appData.rto = parsed.rto || [];
+                    appData.tasks = parsed.tasks || [];
+                    appData.skuMaster = parsed.skuMaster || [];
+                    renderAll();
+                }
+            } catch(e) {}
 
             window.handleDataLoaded = function(data) {
                 if (data) {
@@ -478,7 +491,6 @@
                     localStorage.setItem('namhya_app_data', JSON.stringify(appData));
                     renderAll();
                 }
-                showLoading(false);
             };
 
             const oldScript = document.getElementById('jsonp_script');
@@ -487,10 +499,6 @@
             const script = document.createElement('script');
             script.id = 'jsonp_script';
             script.src = SCRIPT_URL + '?callback=handleDataLoaded&t=' + Date.now();
-            script.onerror = function() {
-                showLoading(false);
-                console.log('JSONP load error');
-            };
             document.body.appendChild(script);
         }
 
