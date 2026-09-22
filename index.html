@@ -29,6 +29,14 @@
 </head>
 <body class="h-full bg-emerald-50/40 dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-sans transition-colors duration-200">
 
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center hidden">
+        <div class="bg-white dark:bg-slate-800 px-6 py-4 rounded-2xl shadow-xl flex items-center space-x-3">
+            <i class="fa-solid fa-spinner fa-spin text-emerald-600 text-xl"></i>
+            <span class="text-sm font-semibold text-slate-700 dark:text-slate-200">Syncing with Google Sheet...</span>
+        </div>
+    </div>
+
     <div class="min-h-full flex flex-col relative">
         <!-- Top Navigation Bar -->
         <header class="bg-white dark:bg-slate-800 border-b border-emerald-100 dark:border-slate-700 sticky top-0 z-30 shadow-xs">
@@ -39,20 +47,15 @@
                     </div>
                     <div>
                         <h1 class="text-lg font-bold tracking-tight text-slate-900 dark:text-white">Namhya Foods Operations</h1>
-                        <p class="text-xs text-emerald-700 dark:text-emerald-400 font-medium">Ayurvedic & Herbal Logistics Hub</p>
+                        <p class="text-xs text-emerald-700 dark:text-emerald-400 font-medium">Ayurvedic & Herbal Logistics Hub (Live Sync)</p>
                     </div>
                 </div>
 
                 <div class="flex items-center space-x-3">
-                    <button onclick="exportAllData()" title="Backup All Data" class="inline-flex items-center space-x-1 px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-50 dark:bg-slate-700 hover:bg-emerald-100 text-emerald-800 dark:text-slate-200 transition">
-                        <i class="fa-solid fa-download"></i>
-                        <span class="hidden sm:inline">Backup</span>
+                    <button onclick="fetchDataFromCloud()" title="Refresh Data" class="inline-flex items-center space-x-1 px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-50 dark:bg-slate-700 hover:bg-emerald-100 text-emerald-800 dark:text-slate-200 transition">
+                        <i class="fa-solid fa-rotate"></i>
+                        <span class="hidden sm:inline">Sync</span>
                     </button>
-                    <label title="Restore Data" class="cursor-pointer inline-flex items-center space-x-1 px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-50 dark:bg-slate-700 hover:bg-emerald-100 text-emerald-800 dark:text-slate-200 transition">
-                        <i class="fa-solid fa-upload"></i>
-                        <span class="hidden sm:inline">Restore</span>
-                        <input type="file" id="importFile" class="hidden" accept=".json" onchange="importAllData(event)">
-                    </label>
                     <button onclick="toggleDarkMode()" class="w-9 h-9 rounded-lg bg-emerald-50 dark:bg-slate-700 hover:bg-emerald-100 dark:hover:bg-slate-600 flex items-center justify-center text-emerald-800 dark:text-slate-300 transition">
                         <i id="themeIcon" class="fa-solid fa-moon"></i>
                     </button>
@@ -251,9 +254,8 @@
                 </div>
             </div>
 
-            <!-- RTO Analytics Tab (UPDATED) -->
+            <!-- RTO Analytics Tab -->
             <div id="tab-rto" class="tab-content hidden flex-1 flex flex-col space-y-6">
-                <!-- Upload Section -->
                 <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-emerald-100 dark:border-slate-700 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
                     <div>
                         <h3 class="text-base font-bold text-slate-900 dark:text-white">RTO Analytics & Percentage Tracker</h3>
@@ -271,14 +273,12 @@
                     </div>
                 </div>
 
-                <!-- Stats Section -->
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border shadow-sm"><p class="text-xs font-semibold uppercase text-slate-500">Total Orders Processed</p><h3 id="rto-total-orders" class="text-2xl font-bold mt-1">0</h3></div>
                     <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border shadow-sm"><p class="text-xs font-semibold uppercase text-slate-500">Total RTO Count</p><h3 id="rto-total-count" class="text-2xl font-bold mt-1 text-rose-600">0</h3></div>
                     <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border shadow-sm"><p class="text-xs font-semibold uppercase text-slate-500">Overall RTO %</p><h3 id="rto-overall-pct" class="text-2xl font-bold mt-1 text-amber-600">0.00%</h3></div>
                 </div>
 
-                <!-- Summary Table -->
                 <div class="bg-white dark:bg-slate-800 rounded-2xl border shadow-sm overflow-hidden flex flex-col mb-4">
                     <div class="p-4 sm:p-5 border-b bg-slate-50/50 dark:bg-slate-900/30"><h3 class="text-sm font-bold">Courier-wise RTO Summary</h3></div>
                     <div class="overflow-x-auto flex-1">
@@ -299,7 +299,6 @@
                     </div>
                 </div>
 
-                <!-- Detailed Records Table with Individual Delete (NEW) -->
                 <div class="bg-white dark:bg-slate-800 rounded-2xl border shadow-sm overflow-hidden flex flex-col flex-1">
                     <div class="p-4 sm:p-5 border-b flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/30">
                         <h3 class="text-sm font-bold">Detailed RTO Records</h3>
@@ -432,20 +431,16 @@
     </div>
 
     <script>
-        let appData = {
-            cod: JSON.parse(localStorage.getItem('namhya_cod')) || [],
-            bills: JSON.parse(localStorage.getItem('namhya_bills')) || [],
-            stock: JSON.parse(localStorage.getItem('namhya_stock')) || [],
-            rto: JSON.parse(localStorage.getItem('namhya_rto')) || [],
-            tasks: JSON.parse(localStorage.getItem('namhya_tasks')) || [],
-            skuMaster: JSON.parse(localStorage.getItem('namhya_sku_master')) || []
-        };
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyXP-McDRIwGb1GqHwbgNF5IoX5p80KbPgxQoPxK2HHFlngX6T9asRVki3NkCmsKDr2/exec";
 
-        // Ensuring old RTO data gets an ID if it doesn't have one
-        appData.rto = appData.rto.map((item, i) => {
-            if(!item.id) item.id = 'rto_legacy_' + Date.now() + '_' + i;
-            return item;
-        });
+        let appData = {
+            cod: [],
+            bills: [],
+            stock: [],
+            rto: [],
+            tasks: [],
+            skuMaster: []
+        };
 
         window.onload = function() {
             if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
@@ -455,17 +450,59 @@
             const today = new Date().toISOString().split('T')[0];
             if(document.getElementById('cod-date')) document.getElementById('cod-date').value = today;
             if(document.getElementById('bill-date')) document.getElementById('bill-date').value = today;
-            renderAll();
+            
+            // Fetch live data from Google Sheets on load
+            fetchDataFromCloud();
         };
 
+        function showLoading(show) {
+            const overlay = document.getElementById('loading-overlay');
+            if(overlay) {
+                if(show) overlay.classList.remove('hidden');
+                else overlay.classList.add('hidden');
+            }
+        }
+
+        // --- FETCH DATA FROM GOOGLE SHEETS ---
+        function fetchDataFromCloud() {
+            showLoading(true);
+            fetch(SCRIPT_URL)
+                .then(response => response.json())
+                .then(data => {
+                    appData.cod = data.cod || [];
+                    appData.bills = data.bills || [];
+                    appData.stock = data.stock || [];
+                    appData.rto = data.rto || [];
+                    appData.tasks = data.tasks || [];
+                    appData.skuMaster = data.skuMaster || [];
+                    renderAll();
+                    showLoading(false);
+                })
+                .catch(err => {
+                    console.error('Error fetching data:', err);
+                    showLoading(false);
+                    alert('Failed to sync with Google Sheet. Please check internet connection.');
+                });
+        }
+
+        // --- SAVE DATA TO GOOGLE SHEETS ---
         function saveAll() {
-            localStorage.setItem('namhya_cod', JSON.stringify(appData.cod));
-            localStorage.setItem('namhya_bills', JSON.stringify(appData.bills));
-            localStorage.setItem('namhya_stock', JSON.stringify(appData.stock));
-            localStorage.setItem('namhya_rto', JSON.stringify(appData.rto));
-            localStorage.setItem('namhya_tasks', JSON.stringify(appData.tasks));
-            localStorage.setItem('namhya_sku_master', JSON.stringify(appData.skuMaster));
-            renderAll();
+            showLoading(true);
+            fetch(SCRIPT_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify(appData)
+            })
+            .then(() => {
+                showLoading(false);
+                renderAll();
+            })
+            .catch(err => {
+                showLoading(false);
+                console.error('Error saving data:', err);
+                alert('Error saving data to Google Sheet.');
+            });
         }
 
         function renderAll() {
@@ -473,7 +510,7 @@
             renderBillsTable();
             renderStockTable();
             renderRtoTable(); 
-            renderRtoDetails(); // Call to render the new detailed RTO table
+            renderRtoDetails();
             renderTasks();
             renderSkuMasterTable();
         }
@@ -521,7 +558,7 @@
                         received: parseFloat(r.Received || r.received || r.RemittedAmount || 0)
                     }));
                     saveAll();
-                    alert(`Successfully imported ${appData.cod.length} COD remittance records!`);
+                    alert(`Successfully imported ${appData.cod.length} COD remittance records to Cloud!`);
                 } catch(err) { alert('Error parsing COD Excel file.'); }
             };
             reader.readAsArrayBuffer(file);
@@ -547,7 +584,7 @@
                         paid: parseFloat(r.Paid || r.paid || 0)
                     }));
                     saveAll();
-                    alert(`Successfully imported ${appData.bills.length} vendor bills!`);
+                    alert(`Successfully imported ${appData.bills.length} vendor bills to Cloud!`);
                 } catch(err) { alert('Error parsing Bills Excel file.'); }
             };
             reader.readAsArrayBuffer(file);
@@ -594,13 +631,13 @@
                         };
                     });
                     saveAll();
-                    alert('Stock deficit auto-calculated from projections & received sheets!');
+                    alert('Stock deficit auto-calculated and synced to Cloud!');
                 } catch(err) { alert('Error parsing received file.'); }
             };
             reader.readAsArrayBuffer(file);
         }
 
-        // --- RTO EXCEL UPLOAD & ANALYSIS (WITH DATE APPENDING) ---
+        // --- RTO EXCEL UPLOAD & ANALYSIS ---
         function handleRtoUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -614,7 +651,6 @@
                     const todayDate = new Date().toISOString().split('T')[0];
 
                     const newRtoData = rows.map((r, i) => {
-                        // Dynamically find courier column name
                         let courierName = r.Courier || r.courier || r.Partner || r['Courier Partner'] || r.courier_name || r.Kwikship;
                         if (!courierName) {
                             const keys = Object.keys(r);
@@ -631,27 +667,26 @@
 
                         return {
                             id: 'rto_' + Date.now() + '_' + i,
-                            date: todayDate, // Adding the upload date
+                            date: todayDate,
                             awb: String(awbVal).trim(),
                             courier: String(courierName).trim(),
                             status: String(statusVal).trim()
                         };
                     });
 
-                    // Update existing records or add new ones (Append without duplicates)
                     newRtoData.forEach(newItem => {
                         const existingIndex = appData.rto.findIndex(item => item.awb === newItem.awb);
                         if(existingIndex !== -1) {
                             appData.rto[existingIndex].status = newItem.status; 
-                            appData.rto[existingIndex].date = newItem.date; // Update Date to newest modification
+                            appData.rto[existingIndex].date = newItem.date;
                             appData.rto[existingIndex].courier = newItem.courier;
                         } else {
-                            appData.rto.unshift(newItem); // Prepend new data to top
+                            appData.rto.unshift(newItem);
                         }
                     });
 
                     saveAll();
-                    alert(`RTO sheet loaded successfully! Total records now: ${appData.rto.length}`);
+                    alert(`RTO sheet uploaded & synced! Total records: ${appData.rto.length}`);
                 } catch(err) { alert('Error parsing RTO file.'); }
             };
             reader.readAsArrayBuffer(file);
@@ -671,7 +706,6 @@
             }
         }
 
-        // Render Summary (Top Table)
         function renderRtoTable() {
             const tbody = document.getElementById('rto-summary-tbody');
             tbody.innerHTML = '';
@@ -719,7 +753,6 @@
             });
         }
 
-        // Render Detailed Records (Bottom Table)
         function renderRtoDetails() {
             const query = (document.getElementById('rto-search')?.value || '').toLowerCase();
             const tbody = document.getElementById('rto-details-tbody');
@@ -743,7 +776,7 @@
 
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td class="py-2.5 px-4 text-xs font-medium text-slate-500">${item.date || 'Old Data'}</td>
+                    <td class="py-2.5 px-4 text-xs font-medium text-slate-500">${item.date || 'Synced'}</td>
                     <td class="py-2.5 px-4 font-medium">${item.courier}</td>
                     <td class="py-2.5 px-4 font-mono text-xs text-[#1b4d3e] font-semibold">${item.awb}</td>
                     <td class="py-2.5 px-4"><span class="px-2.5 py-1 text-[10px] rounded-full font-semibold border ${badgeClass}">${item.status}</span></td>
@@ -1027,22 +1060,6 @@
         }
         function toggleTask(id) { const t = appData.tasks.find(x => x.id === id); if(t) { t.completed = !t.completed; saveAll(); } }
         function deleteTask(id) { appData.tasks = appData.tasks.filter(x => x.id !== id); saveAll(); }
-
-        // --- Backup & Restore ---
-        function exportAllData() {
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appData, null, 2));
-            const dlAnchor = document.createElement('a');
-            dlAnchor.setAttribute("href", dataStr); dlAnchor.setAttribute("download", `namhya_foods_backup_${new Date().toISOString().split('T')[0]}.json`);
-            document.body.appendChild(dlAnchor); dlAnchor.click(); dlAnchor.remove();
-        }
-        function importAllData(event) {
-            const file = event.target.files[0]; if(!file) return;
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try { appData = JSON.parse(e.target.result); saveAll(); alert('Restored successfully!'); } catch(err) { alert('Invalid backup file.'); }
-            };
-            reader.readAsText(file);
-        }
     </script>
 </body>
 </html>
