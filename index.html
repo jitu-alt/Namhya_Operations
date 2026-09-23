@@ -444,7 +444,6 @@
             loadLocalData();
         };
 
-        // --- 100% SECURE LOCAL STORAGE ENGINE (NO ERRORS, NO ZERO VALUES) ---
         function loadLocalData() {
             try {
                 const localSaved = localStorage.getItem('namhya_app_data');
@@ -513,7 +512,7 @@
                 try {
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, {type: 'array'});
-                    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {defval: ""});
                     
                     appData.cod = rows.map((r, i) => ({
                         id: 'cod_' + Date.now() + '_' + i,
@@ -538,7 +537,7 @@
                 try {
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, {type: 'array'});
-                    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {defval: ""});
                     
                     appData.bills = rows.map((r, i) => ({
                         id: 'bill_' + Date.now() + '_' + i,
@@ -564,7 +563,7 @@
                 try {
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, {type: 'array'});
-                    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {defval: ""});
                     tempProjection = rows;
                     alert(`Projection file loaded (${tempProjection.length} items). Now upload Received file.`);
                 } catch(err) { alert('Error parsing projection file.'); }
@@ -580,7 +579,7 @@
                 try {
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, {type: 'array'});
-                    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {defval: ""});
                     
                     appData.stock = rows.map((r, i) => {
                         const sku = String(r.SKU || r.sku || '');
@@ -609,31 +608,43 @@
                 try {
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, {type: 'array'});
-                    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                    const firstSheetName = workbook.SheetNames[0];
+                    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheetName], {defval: ""});
                     
+                    if (!rows || rows.length === 0) {
+                        alert('Uploaded Excel file is empty.');
+                        return;
+                    }
+
                     const todayDate = new Date().toISOString().split('T')[0];
 
                     const newRtoData = rows.map((r, i) => {
-                        let courierName = r.Courier || r.courier || r.Partner || r['Courier Partner'] || r.courier_name || r.Kwikship;
-                        if (!courierName) {
-                            const keys = Object.keys(r);
-                            const match = keys.find(k => {
-                                const kl = k.toLowerCase();
-                                return kl.includes('courier') || kl.includes('partner') || kl.includes('logistic') || kl === 'company';
-                            });
-                            if (match) courierName = r[match];
-                        }
-                        if (!courierName) courierName = 'Unknown Courier';
+                        let keys = Object.keys(r);
+                        
+                        let courierKey = keys.find(k => {
+                            let kl = k.toLowerCase();
+                            return kl.includes('courier') || kl.includes('partner') || kl.includes('logistic') || kl.includes('shipping');
+                        });
+                        let courierName = courierKey ? r[courierKey] : 'Unknown Courier';
 
-                        let statusVal = r.Status || r.status || r['Order Status'] || r['Current Status'] || 'Delivered';
-                        let awbVal = r.AWB || r.awb || r['AWB Number'] || r.OrderID || r['Order ID'] || 'AWB_'+Date.now()+'_'+i;
+                        let statusKey = keys.find(k => {
+                            let kl = k.toLowerCase();
+                            return kl.includes('status') || kl.includes('state') || kl.includes('remark');
+                        });
+                        let statusVal = statusKey ? r[statusKey] : 'Delivered';
+
+                        let awbKey = keys.find(k => {
+                            let kl = k.toLowerCase();
+                            return kl.includes('awb') || kl.includes('order') || kl.includes('tracking') || kl.includes('waybill');
+                        });
+                        let awbVal = awbKey ? r[awbKey] : ('AWB_' + Date.now() + '_' + i);
 
                         return {
                             id: 'rto_' + Date.now() + '_' + i,
                             date: todayDate,
                             awb: String(awbVal).trim(),
-                            courier: String(courierName).trim(),
-                            status: String(statusVal).trim()
+                            courier: String(courierName || 'Unknown Courier').trim(),
+                            status: String(statusVal || 'Delivered').trim()
                         };
                     });
 
@@ -649,8 +660,11 @@
                     });
 
                     saveAll();
-                    alert(`RTO sheet uploaded! Total records: ${appData.rto.length}`);
-                } catch(err) { alert('Error parsing RTO file.'); }
+                    alert(`RTO sheet uploaded successfully! Total records: ${appData.rto.length}`);
+                } catch(err) { 
+                    console.log(err);
+                    alert('Error parsing RTO file. Please check column headers.'); 
+                }
             };
             reader.readAsArrayBuffer(file);
         }
@@ -761,7 +775,7 @@
                 try {
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, {type: 'array'});
-                    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {defval: ""});
                     
                     appData.skuMaster = rows.map(r => ({
                         ean: String(r.EAN || r.ean || '').trim(),
