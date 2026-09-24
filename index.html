@@ -29,6 +29,14 @@
 </head>
 <body class="h-full bg-emerald-50/40 dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-sans transition-colors duration-200">
 
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center hidden">
+        <div class="bg-white dark:bg-slate-800 px-6 py-4 rounded-2xl shadow-xl flex items-center space-x-3">
+            <i class="fa-solid fa-spinner fa-spin text-emerald-600 text-xl"></i>
+            <span class="text-sm font-semibold text-slate-700 dark:text-slate-200">Syncing with Google Sheet...</span>
+        </div>
+    </div>
+
     <div class="min-h-full flex flex-col relative">
         <!-- Top Navigation Bar -->
         <header class="bg-white dark:bg-slate-800 border-b border-emerald-100 dark:border-slate-700 sticky top-0 z-30 shadow-xs">
@@ -39,14 +47,14 @@
                     </div>
                     <div>
                         <h1 class="text-lg font-bold tracking-tight text-slate-900 dark:text-white">Namhya Foods Operations</h1>
-                        <p class="text-xs text-emerald-700 dark:text-emerald-400 font-medium">Ayurvedic & Herbal Logistics Hub (Local Secure Mode)</p>
+                        <p class="text-xs text-emerald-700 dark:text-emerald-400 font-medium">Ayurvedic & Herbal Logistics Hub (Realtime G-Sheet Sync)</p>
                     </div>
                 </div>
 
                 <div class="flex items-center space-x-3">
-                    <button onclick="loadLocalData()" title="Refresh View" class="inline-flex items-center space-x-1 px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-50 dark:bg-slate-700 hover:bg-emerald-100 text-emerald-800 dark:text-slate-200 transition">
+                    <button onclick="fetchDataFromCloud()" title="Refresh Data" class="inline-flex items-center space-x-1 px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-50 dark:bg-slate-700 hover:bg-emerald-100 text-emerald-800 dark:text-slate-200 transition">
                         <i class="fa-solid fa-rotate"></i>
-                        <span class="hidden sm:inline">Refresh</span>
+                        <span class="hidden sm:inline">Sync</span>
                     </button>
                     <button onclick="toggleDarkMode()" class="w-9 h-9 rounded-lg bg-emerald-50 dark:bg-slate-700 hover:bg-emerald-100 dark:hover:bg-slate-600 flex items-center justify-center text-emerald-800 dark:text-slate-300 transition">
                         <i id="themeIcon" class="fa-solid fa-moon"></i>
@@ -91,7 +99,7 @@
                 <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-emerald-100 dark:border-slate-700 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
                     <div>
                         <h3 class="text-base font-bold text-slate-900 dark:text-white">Auto-Upload Courier COD Remittance</h3>
-                        <p class="text-xs text-slate-500">Upload courier payout Excel/CSV to auto-update expected vs received amounts instantly.</p>
+                        <p class="text-xs text-slate-500">Upload courier payout Excel/CSV to auto-update expected vs received amounts.</p>
                     </div>
                     <label class="cursor-pointer inline-flex items-center space-x-2 px-4 py-2.5 bg-[#1b4d3e] hover:bg-[#12352b] text-white text-sm font-semibold rounded-xl shadow-sm transition">
                         <i class="fa-solid fa-file-excel"></i>
@@ -423,6 +431,8 @@
     </div>
 
     <script>
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxemCmN-X_QjsizQwgE4i_s9WRPxRG0rjVb26DQ5sjJ18MRHtUKMmsWk14rxi2GDuJW/exec";
+
         let appData = {
             cod: [],
             bills: [],
@@ -441,10 +451,22 @@
             if(document.getElementById('cod-date')) document.getElementById('cod-date').value = today;
             if(document.getElementById('bill-date')) document.getElementById('bill-date').value = today;
             
-            loadLocalData();
+            fetchDataFromCloud();
         };
 
-        function loadLocalData() {
+        function showLoading(show) {
+            const overlay = document.getElementById('loading-overlay');
+            if(overlay) {
+                if(show) overlay.classList.remove('hidden');
+                else overlay.classList.add('hidden');
+            }
+        }
+
+        // --- FETCH REAL-TIME DATA FROM GOOGLE SHEET ---
+        function fetchDataFromCloud() {
+            showLoading(true);
+            
+            // Local fallback for instant load
             try {
                 const localSaved = localStorage.getItem('namhya_app_data');
                 if (localSaved) {
@@ -455,20 +477,44 @@
                     appData.rto = parsed.rto || [];
                     appData.tasks = parsed.tasks || [];
                     appData.skuMaster = parsed.skuMaster || [];
+                    renderAll();
                 }
-            } catch(e) {
-                console.log('Local load error:', e);
-            }
-            renderAll();
+            } catch(e) {}
+
+            fetch(SCRIPT_URL, { method: 'GET', redirect: 'follow' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data) {
+                        appData.cod = data.cod || [];
+                        appData.bills = data.bills || [];
+                        appData.stock = data.stock || [];
+                        appData.rto = data.rto || [];
+                        appData.tasks = data.tasks || [];
+                        appData.skuMaster = data.skuMaster || [];
+                        
+                        localStorage.setItem('namhya_app_data', JSON.stringify(appData));
+                        renderAll();
+                    }
+                    showLoading(false);
+                })
+                .catch(err => {
+                    console.log('Fetch error:', err);
+                    showLoading(false);
+                });
         }
 
+        // --- REAL-TIME SYNC TO GOOGLE SHEET (VIA GET PARAMETER) ---
         function saveAll() {
             try {
                 localStorage.setItem('namhya_app_data', JSON.stringify(appData));
-            } catch(e) {
-                console.log('Local save error:', e);
-            }
+            } catch(e) {}
             renderAll();
+
+            const jsonStr = encodeURIComponent(JSON.stringify(appData));
+            fetch(SCRIPT_URL + '?saveData=' + jsonStr, { method: 'GET', redirect: 'follow' })
+                .then(res => res.json())
+                .then(res => console.log('Synced to G-Sheet:', res))
+                .catch(err => console.log('Sync background error:', err));
         }
 
         function renderAll() {
@@ -523,7 +569,7 @@
                         received: parseFloat(r.Received || r.received || r.RemittedAmount || 0)
                     }));
                     saveAll();
-                    alert(`Successfully imported ${appData.cod.length} COD remittance records!`);
+                    alert(`Successfully imported ${appData.cod.length} COD remittance records and synced to G-Sheet!`);
                 } catch(err) { alert('Error parsing COD Excel file.'); }
             };
             reader.readAsArrayBuffer(file);
@@ -548,7 +594,7 @@
                         paid: parseFloat(r.Paid || r.paid || 0)
                     }));
                     saveAll();
-                    alert(`Successfully imported ${appData.bills.length} vendor bills!`);
+                    alert(`Successfully imported ${appData.bills.length} vendor bills and synced to G-Sheet!`);
                 } catch(err) { alert('Error parsing Bills Excel file.'); }
             };
             reader.readAsArrayBuffer(file);
@@ -594,7 +640,7 @@
                         };
                     });
                     saveAll();
-                    alert('Stock deficit auto-calculated!');
+                    alert('Stock deficit auto-calculated and synced to G-Sheet!');
                 } catch(err) { alert('Error parsing received file.'); }
             };
             reader.readAsArrayBuffer(file);
@@ -660,7 +706,7 @@
                     });
 
                     saveAll();
-                    alert(`RTO sheet uploaded successfully! Total records: ${appData.rto.length}`);
+                    alert(`RTO sheet uploaded successfully and synced! Total records: ${appData.rto.length}`);
                 } catch(err) { 
                     console.log(err);
                     alert('Error parsing RTO file. Please check column headers.'); 
